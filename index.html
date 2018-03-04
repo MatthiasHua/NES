@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>NES</title>
+    <script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+</head>
+<body>
+    <canvas id="mainCanvas" width="256" height="240" style="border: 1px solid;"></canvas>
+    <br>
+    <canvas id="testCanvas" width="640" height="640" style="border: 1px solid;"></canvas>
+    <br>
+    <button id="previousPage">上一页</button>
+    <button id="nextPage">下一页</button>
+    <br>
+    <button id="previousCell">上一格</button>
+    <button id="nextCell">下一格</button>
+    <script>
+
+
+        //NESfile = $.ajax({url:"Super Mario Bros.nes", processData: false,async:true});
+        let NESfile = new XMLHttpRequest();
+        NESfile.open('GET', "Super Mario Bros.nes", true);
+        NESfile.responseType = 'arraybuffer';
+        NESfile.send();
+
+        //话一个像素/矩形
+        const drawPixel = function(ctx, x, y, width, height, color) {
+            ctx.fillStyle=color;
+            ctx.fillRect(x, y, width, height);
+        }
+        //画一个字节
+        const drawByte = function(ctx, byte1, byte2, zoom = 1, x, y, color) {
+            for (let i = 0; i < 8; i ++) {
+                drawPixel(ctx, x + 70 - i * 10, y, zoom, zoom, color[byte1 % 2 + byte2 % 2 * 2]);
+                byte1 = Math.floor(byte1 / 2);
+                byte2 = Math.floor(byte2 / 2);
+            }
+        }
+
+        //画一个单元
+        const drawCell = function(bytes, ctx, startAddress, zoom = 1, x, y, color) {
+            for (let i = 0; i < 8; i ++) {
+              drawByte(ctx, bytes[i + startAddress], bytes[i + startAddress + 8], zoom, x, y + i * zoom, color)
+              //console.log(y, i, zoom, y + i * zoom);
+            }
+        }
+
+        //画一页(8x8个单元)
+        const drawPage = function(bytes, ctx, startAddress, zoom = 1, color) {
+            for (let i = 0; i < 8; i ++) {
+                for (let j = 0; j < 8; j ++)
+                drawCell(window.bytes, ctx, startAddress + 16 * j + 128 * i, 10, 80 * j, 80 * i, color);
+            }
+        }
+
+        const getNESHead = function(bytes) {
+            return {
+              num16KBRom:bytes[4],
+              num8KBVRom:bytes[5],
+            }
+        }
+
+        const printNESHead = function() {
+            console.log('16KB ROM数量:', NESHead.num16KBRom)
+            console.log('8KB VROM数量:', NESHead.num8KBVRom)
+        }
+
+        const getInstruction = function(bytes, PC) {
+            //反汇编
+            switch (bytes[PC + 16]) {
+              case 16://10H
+                if  (bytes[PC + 17] > 127)
+                    console.log('BPL $' + (bytes[PC + 17] + PC - 254));
+                else
+                    console.log('BPL $' + bytes[PC + 17] + PC + 2);
+                PC++;
+                break;
+              case 120://78H
+                console.log('SEI');
+                break;
+              case 141://8DH
+                console.log('STA $' + (bytes[PC + 17] + bytes[PC + 18] * 256));
+                PC += 2;
+                break;
+              case 154://9AH
+                console.log('TXS');
+                break;
+              case 162://A2H
+                console.log('LDA #$' + bytes[PC + 17]);
+                PC++;
+                break;
+              case 169://A9H
+                console.log('LDA #$' + bytes[PC + 17]);
+                PC++;
+                break;
+              case 173://ADH
+                console.log('LDA $' + (bytes[PC + 17] + bytes[PC + 18] * 256));
+                PC += 2;
+                break;
+              case 216://D8H
+                console.log('CLD');
+                  break;
+              default:
+                console.log('unknow');
+            }
+            PC++;
+            return PC;
+        }
+
+        NESfile.onload = function() {
+            window.bytes = new Uint8Array(NESfile.response);
+            console.log(bytes);
+        }
+
+        $(document).ready(function() {
+            let mainCanvas = document.getElementById('mainCanvas');
+            let ctx = mainCanvas.getContext('2d');
+
+            window.PC = 0;
+            //testCanvas
+            window.test = {
+                ctx: document.getElementById('testCanvas').getContext('2d'),
+                pageIndex: 0,
+                color:['white', 'grey', 'blue', 'black'],
+            };
+            test.drawTestPage = function() {
+                drawPage(bytes, test.ctx, test.pageIndex * 16, 10, test.color)
+            }
+            drawPage(bytes, test.ctx, 0, 10, test.color)
+            $('#nextPage').click(function(ctx = testctx) {
+                test.pageIndex += 64;
+                test.drawTestPage();
+            })
+
+            $('#previousPage').click(function(ctx = testctx) {
+                test.pageIndex -= 64;
+                test.drawTestPage();
+            })
+
+            $('#nextCell').click(function(ctx = testctx) {
+                test.pageIndex += 1;
+                test.drawTestPage();
+            })
+
+            $('#previousCell').click(function(ctx = testctx) {
+                test.pageIndex -= 1;
+                test.drawTestPage();
+            })
+
+            //读取NES文件头部信息
+            window.NESHead = getNESHead(bytes)
+            printNESHead()
+            for (let i = 0; i < 120; i++)
+                PC = getInstruction(bytes, PC)
+
+        })
+
+
+    </script>
+</body>
+<html>

@@ -66,58 +66,133 @@
             console.log('8KB VROM数量:', NESHead.num8KBVRom)
         }
 
-        const getInstruction = function(bytes, PC) {
-            //反汇编
-            switch (bytes[PC + 16]) {
-              case 16://10H
-                if  (bytes[PC + 17] > 127)
-                    console.log('BPL $' + (bytes[PC + 17] + PC - 254));
-                else
-                    console.log('BPL $' + bytes[PC + 17] + PC + 2);
-                PC++;
-                break;
-              case 120://78H
-                console.log('SEI');
-                break;
-              case 141://8DH
-                console.log('STA $' + (bytes[PC + 17] + bytes[PC + 18] * 256));
-                PC += 2;
-                break;
-              case 154://9AH
-                console.log('TXS');
-                break;
-              case 162://A2H
-                console.log('LDA #$' + bytes[PC + 17]);
-                PC++;
-                break;
-              case 169://A9H
-                console.log('LDA #$' + bytes[PC + 17]);
-                PC++;
-                break;
-              case 173://ADH
-                console.log('LDA $' + (bytes[PC + 17] + bytes[PC + 18] * 256));
-                PC += 2;
-                break;
-              case 216://D8H
-                console.log('CLD');
-                  break;
-              default:
-                console.log('unknow');
+        const disassembly = function() {
+            //隐式寻址
+            let iImplicitAddress = function(iName) {
+                console.log(iName);
+                PC ++;
             }
-            PC++;
+            //8位绝对寻址
+            let iAbsolutAddress8 = function(iName) {
+                console.log(iName + ' $' + memory[PC + 1].toString(16).toUpperCase());
+                PC += 2;
+            }
+            //16位绝对寻址
+            let iAbsolutAddress16 = function(iName) {
+                console.log(iName + ' $' + (memory[PC + 1] + memory[PC + 2] * 256).toString(16).toUpperCase());
+                PC += 3;
+            }
+            //16位绝对X变址
+            let iAbsolutAddressX16 = function(iName) {
+                console.log(iName + ' $' + (memory[PC + 1] + memory[PC + 2] * 256).toString(16).toUpperCase() + ',X');
+                PC += 3;
+            }
+            //16位相对寻址
+            let iRelativeAddress16 = function(iName) {
+                if  (memory[PC + 1] > 127)
+                    console.log(iName + ' $' + (memory[PC + 1] + PC - 254).toString(16).toUpperCase());
+                else
+                    console.log(iName + ' $' + (memory[PC + 1] + PC + 2).toString(16).toUpperCase());
+                PC += 2;
+            }
+            //反汇对照表
+            let disassemblyTable = Array(256);
+            //10H BPL
+            disassemblyTable[16] = {
+                name: 'BPL',
+                type: iRelativeAddress16,
+            }
+            //78H SEI
+            disassemblyTable[120] = {
+                name: 'SEI',
+                type: iImplicitAddress,
+            }
+            //8DH STA
+            disassemblyTable[141] = {
+                name: 'STA',
+                type: iAbsolutAddress16,
+            }
+            //9AH TXS
+            disassemblyTable[154] = {
+                name: 'TXS',
+                type: iImplicitAddress,
+            }
+            //A2H LDY
+            disassemblyTable[160] = {
+                name: 'LDY',
+                type: iAbsolutAddress8,
+            }
+            //A2H LDX
+            disassemblyTable[162] = {
+                name: 'LDX',
+                type: iAbsolutAddress8,
+            }
+            //A9H LDA
+            disassemblyTable[169] = {
+                name: 'LDA',
+                type: iAbsolutAddress8,
+            }
+            //ADH LDA
+            disassemblyTable[173] = {
+                name: 'LDA',
+                type: iAbsolutAddress16,
+            }
+            //B0H BCS
+            disassemblyTable[176] = {
+                name: 'BCS',
+                type: iRelativeAddress16,
+            }
+            //BDH LDA
+            disassemblyTable[189] = {
+                name: 'LDA',
+                type: iAbsolutAddressX16,
+            }
+            //C9H CMP
+            disassemblyTable[201] = {
+                name: 'CMP',
+                type: iAbsolutAddress8,
+            }
+            //CAH DEX
+            disassemblyTable[202] = {
+                name: 'DEX',
+                type: iImplicitAddress,
+            }
+            //D0H BNE
+            disassemblyTable[208] = {
+                name: 'BNE',
+                type: iRelativeAddress16,
+            }
+            //D8H CLD
+            disassemblyTable[216] = {
+                name: 'CLD',
+                type: iImplicitAddress,
+            }
+
+            instruction = disassemblyTable[memory[PC]];
+            if (instruction)
+                instruction.type(instruction.name);
+            else {
+                console.log(memory[PC])
+                iImplicitAddress('unknow');
+            }
+
             return PC;
         }
 
         NESfile.onload = function() {
             window.bytes = new Uint8Array(NESfile.response);
+            window.memory = new Uint8Array(65536);
+            for (var i = 0; i < 32768; i++)
+                memory[i + 32768] = bytes[i + 16];
             console.log(bytes);
         }
+
 
         $(document).ready(function() {
             let mainCanvas = document.getElementById('mainCanvas');
             let ctx = mainCanvas.getContext('2d');
 
-            window.PC = 0;
+            window.PC = 32768;
             //testCanvas
             window.test = {
                 ctx: document.getElementById('testCanvas').getContext('2d'),
@@ -152,7 +227,7 @@
             window.NESHead = getNESHead(bytes)
             printNESHead()
             for (let i = 0; i < 120; i++)
-                PC = getInstruction(bytes, PC)
+                PC = disassembly()
 
         })
 
